@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "fol2-enable-dream",
+  "description": "Plugin marketplace for enable-dream — patch Claude Code to unlock /dream and auto-dream",
+  "owner": {
+    "name": "fol2",
+    "email": "fol2@users.noreply.github.com"
+  },
+  "plugins": [
+    {
+      "name": "enable-dream",
+      "description": "Patch Claude Code binary to enable /dream command and auto-dream memory consolidation on gated builds",
+      "category": "development",
+      "source": ".",
+      "homepage": "https://github.com/fol2/enable-dream"
+    }
+  ]
+}
