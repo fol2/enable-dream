@@ -11,7 +11,7 @@
       "name": "enable-dream",
       "description": "Patch Claude Code binary to enable /dream command and auto-dream memory consolidation on gated builds",
       "category": "development",
-      "source": ".",
+      "source": "./",
       "homepage": "https://github.com/fol2/enable-dream"
     }
   ]
