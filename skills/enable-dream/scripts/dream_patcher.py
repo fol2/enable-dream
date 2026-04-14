@@ -20,7 +20,7 @@ Usage:
 Three gates are patched:
   1. AVAILABILITY gate: checks tengu_onyx_plover .enabled/.available
      → Controls UI visibility and runner pre-check
-  2. SKILL gate: calls FE("tengu_kairos_dream", ...)
+  2. SKILL gate: calls evaluator("tengu_kairos_dream", ...)
      → Controls /dream command registration
   3. RUNNER gate: calls availability gate, checks autoDreamEnabled
      → Controls background auto-dream firing
@@ -108,7 +108,7 @@ ANCHOR_RUNNER_SETTING = b"autoDreamEnabled"
 
 # Patterns that identify each gate type within its enclosing function
 AVAILABILITY_MARKERS = [b"?.enabled", b"?.available"]
-SKILL_MARKERS = [b"FE("]  # FE is the Statsig flag evaluator
+SKILL_MARKERS = [b'("' + ANCHOR_SKILL + b'"']  # flag used as function arg (minifier-resilient)
 RUNNER_MARKERS = [ANCHOR_RUNNER_SETTING]
 
 # Bypass payload prefix — returned before any gate check
@@ -385,7 +385,7 @@ def detect_skill_gates(data: bytes) -> list[FunctionMatch]:
 
     Unpatched characteristics:
       - References "tengu_kairos_dream"
-      - Calls FE() (Statsig feature evaluator)
+      - Contains ("tengu_kairos_dream" as function argument (minifier-resilient)
       - Short function (< 200 bytes body)
       - Does NOT contain autoDreamEnabled (that's the runner gate)
 
