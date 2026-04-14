@@ -47,10 +47,25 @@ python "<this-skill-dir>/scripts/dream_patcher.py" patch
 - `--dry-run` — show what would be patched without writing
 - `--binary PATH` — explicit path to claude binary (skips auto-detection)
 
-### Step 2 — Disable auto-updater
+### Step 2 — Offer to disable auto-updater (ASK THE USER FIRST)
 
-The auto-updater will overwrite the patch on next update. Add to
-`~/.claude/settings.json` under `"env"`:
+The auto-updater will overwrite the patch on next update, so the user has
+to re-patch each time Claude Code updates. Disabling it keeps the patch
+stable but also means the user stops receiving Anthropic's updates until
+they turn it back on — that's a trade-off the **user must decide**, not you.
+
+After the patch succeeds, ask the user something like:
+
+> "Patch applied. Auto-updater will overwrite it on the next `claude update`.
+> Want me to set `DISABLE_AUTOUPDATER: "1"` in `~/.claude/settings.json` to
+> lock the patched version in? (You can re-enable and re-patch manually
+> anytime.)"
+
+Only edit `~/.claude/settings.json` if the user says yes. If they decline
+or don't answer, skip this step — they may prefer to keep getting updates
+and re-patch each time, or manage the env var themselves at the OS level.
+
+If the user says yes, add this under `"env"` in `~/.claude/settings.json`:
 
 ```json
 {
@@ -59,8 +74,6 @@ The auto-updater will overwrite the patch on next update. Add to
   }
 }
 ```
-
-Or set it as a system environment variable.
 
 ### Step 3 — Restart Claude Code
 

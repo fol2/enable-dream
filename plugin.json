@@ -1,5 +1,5 @@
 {
   "name": "enable-dream",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Patch Claude Code to enable /dream and auto-dream memory consolidation on gated builds"
 }
