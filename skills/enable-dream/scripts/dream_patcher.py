@@ -439,7 +439,7 @@ def make_bypass_function(func: FunctionMatch, gate_type: str) -> PatchSite:
     Result: function NAME(){return!0;/*<padded comment>*/}
     """
     m = re.match(
-        rb"(function\s+\w+\s*\([^)]*\)\s*\{)(.*?)(\})\s*$",
+        rb"(function\s+[\w$]+\s*\([^)]*\)\s*\{)(.*?)(\})\s*$",
         func.body,
         re.DOTALL,
     )
