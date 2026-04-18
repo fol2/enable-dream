@@ -135,8 +135,19 @@ document explains the underlying mechanism so you can adapt.
 - Patches are **same-length byte replacements** — no offsets shift, binary
   size is unchanged, the Node.js SEA structure stays intact
 - The original binary is always backed up before patching
-- Windows: the running binary cannot be overwritten directly. The script
-  uses a rename-swap strategy (rename running exe, put patched one in place)
+- **macOS**: the patcher auto-detects Darwin and runs
+  `codesign --force --sign -` on the patched binary. Any byte edit
+  invalidates the Apple code signature, so without re-signing the kernel
+  would refuse to launch the binary (typically `killed: 9` on arm64).
+  Requires Xcode Command Line Tools (`xcode-select --install`) for
+  `codesign` to be available.
+- **macOS/Linux**: `~/.local/bin/claude` is usually a symlink to the
+  versioned binary (`~/.local/share/claude/versions/<ver>`). The patcher
+  resolves symlinks so backups land next to the real file and restore
+  finds them reliably.
+- **Windows**: the running binary cannot be overwritten directly. The
+  script uses a rename-swap strategy (rename running exe, put patched
+  one in place)
 - The `autoDreamEnabled: true` setting in `~/.claude/settings.json` is
   still needed for auto-dream to run. The patch just makes the setting
   take effect instead of being ignored by the gate.

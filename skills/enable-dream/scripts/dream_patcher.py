@@ -123,12 +123,19 @@ PATCH_SIGNATURE = b"return!0;/*"
 # ---------------------------------------------------------------------------
 
 def find_claude_binary(explicit_path: Optional[str] = None) -> Path:
-    """Locate the Claude Code binary on this system."""
+    """Locate the Claude Code binary on this system.
+
+    Always returns the fully resolved real path (symlinks followed), so
+    patch/backup/restore operate on the versioned binary file rather than
+    on a launcher symlink. This matters on macOS/Linux where
+    ~/.local/bin/claude typically symlinks to
+    ~/.local/share/claude/versions/<ver>.
+    """
     if explicit_path:
         p = Path(explicit_path)
         if not p.exists():
             raise FileNotFoundError(f"Binary not found: {p}")
-        return p
+        return p.resolve()
 
     system = platform.system()
     home = Path.home()
@@ -161,7 +168,7 @@ def find_claude_binary(explicit_path: Optional[str] = None) -> Path:
 
     for c in candidates:
         if c.exists() and c.is_file():
-            return c
+            return c.resolve()
 
     raise FileNotFoundError(
         "Could not find Claude Code binary. "
@@ -762,14 +769,30 @@ def do_patch(binary_path: Path, dry_run: bool = False) -> PatchReport:
             report.errors.append(f"Failed to write patched binary: {e}")
             return report
 
-    save_metadata(binary_path, report)
-
-    # Verify
+    # Verify written bytes match what we wrote (before any re-signing)
     written = binary_path.read_bytes()
     written_hash = hashlib.sha256(written).hexdigest()
     if written_hash != report.sha256_after:
         report.errors.append("Post-write hash mismatch — patch may be corrupt")
         return report
+
+    # macOS: re-sign ad-hoc because byte edits invalidate the Apple signature.
+    # This deliberately happens after the hash check — codesign mutates the
+    # Mach-O signature blob, so post-sign sha256 will differ from the planned
+    # patch hash. We update sha256_after to reflect the final on-disk bytes.
+    if _is_macos():
+        ok, msg = ad_hoc_sign_macos(binary_path)
+        if ok:
+            if msg:
+                report.messages.append(msg)
+            report.sha256_after = hashlib.sha256(
+                binary_path.read_bytes()
+            ).hexdigest()
+        else:
+            report.errors.append(msg)
+            return report
+
+    save_metadata(binary_path, report)
 
     report.success = True
     report.messages.append(
@@ -877,9 +900,19 @@ def do_status(binary_path: Path) -> PatchReport:
 # ---------------------------------------------------------------------------
 
 def _atomic_write(path: Path, data: bytes):
-    """Write data to path atomically via temp file + rename."""
+    """Write data to path atomically via temp file + rename.
+
+    Preserves the original file mode so the execute bit (crucial on
+    macOS/Linux) survives the replacement — a freshly created temp file
+    defaults to 0644 which would leave the binary unrunnable.
+    """
     tmp = path.with_suffix(path.suffix + ".dream-tmp")
     tmp.write_bytes(data)
+    if path.exists():
+        try:
+            shutil.copymode(str(path), str(tmp))
+        except OSError:
+            pass  # non-fatal; we'll still try to replace
     os.replace(str(tmp), str(path))
 
 
@@ -912,6 +945,49 @@ def _rename_swap_write(path: Path, data: bytes):
 
     os.rename(str(tmp), str(path))
     # running file can be cleaned up after process exits
+
+
+# ---------------------------------------------------------------------------
+# macOS code signature handling
+# ---------------------------------------------------------------------------
+
+def _is_macos() -> bool:
+    return platform.system() == "Darwin"
+
+
+def ad_hoc_sign_macos(binary_path: Path) -> tuple[bool, str]:
+    """Re-sign the binary with an ad-hoc signature on macOS.
+
+    Any byte-level modification invalidates the original Apple code
+    signature, after which macOS refuses to load the binary (typically
+    with SIGKILL on arm64). Applying an ad-hoc signature
+    (`codesign --force --sign -`) restores a locally-valid signature so
+    the kernel will execute it again.
+
+    Returns (success, message). A no-op on non-macOS platforms.
+    """
+    if not _is_macos():
+        return True, ""
+
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["codesign", "--force", "--sign", "-", str(binary_path)],
+            capture_output=True, text=True, timeout=60,
+        )
+    except FileNotFoundError:
+        return False, (
+            "codesign not found — install Xcode Command Line Tools "
+            "(`xcode-select --install`) and re-run patch"
+        )
+    except Exception as e:
+        return False, f"codesign invocation failed: {e}"
+
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip()
+        return False, f"codesign failed (exit {result.returncode}): {err}"
+
+    return True, "ad-hoc re-signed (macOS)"
 
 
 # ---------------------------------------------------------------------------
